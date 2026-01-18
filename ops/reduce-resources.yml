@@ -1,0 +1,58 @@
+# ops/reduce-resources.yml
+# Apply this ops file to reduce resource requirements for constrained environments
+# Usage: -o ops/reduce-resources.yml when deploying CF
+
+# Reduce Diego cell instances to 1
+- type: replace
+  path: /instance_groups/name=diego-cell/instances
+  value: 1
+
+# Reduce API instances to 1
+- type: replace
+  path: /instance_groups/name=api/instances
+  value: 1
+
+# Reduce router instances to 1
+- type: replace
+  path: /instance_groups/name=router/instances
+  value: 1
+
+# Reduce scheduler instances to 1
+- type: replace
+  path: /instance_groups/name=scheduler/instances
+  value: 1
+
+# Reduce singleton-blobstore to minimal
+- type: replace
+  path: /instance_groups/name=singleton-blobstore/instances
+  value: 1
+
+# Reduce doppler instances
+- type: replace
+  path: /instance_groups/name=doppler/instances
+  value: 1
+
+# Reduce log-api instances
+- type: replace
+  path: /instance_groups/name=log-api/instances
+  value: 1
+
+# Reduce UAA instances
+- type: replace
+  path: /instance_groups/name=uaa/instances
+  value: 1
+
+# Reduce credhub instances
+- type: replace
+  path: /instance_groups/name=credhub/instances
+  value: 1
+
+# Use smaller VM type for diego-cell
+- type: replace
+  path: /instance_groups/name=diego-cell/vm_type
+  value: small
+
+# Reduce compilation workers
+- type: replace
+  path: /update/max_in_flight
+  value: 1
