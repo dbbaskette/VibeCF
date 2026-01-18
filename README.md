@@ -18,6 +18,8 @@ This deployment uses:
 | CPU | 4 cores | 8+ cores |
 
 ### Supported Platforms
+- **macOS** (Intel & Apple Silicon)
+  - *Note for Apple Silicon (M1/M2/M3):* Requires Docker Desktop with Rosetta 2 emulation enabled. Performance may be slower due to architecture emulation.
 - Ubuntu 22.04+ (recommended)
 - Debian 11+
 - Other Linux distributions with Docker support
