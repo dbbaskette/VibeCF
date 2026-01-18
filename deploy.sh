@@ -31,7 +31,14 @@ CF_NETWORK_GW="10.245.0.1"
 CF_NETWORK_NAME="cf-network"
 
 # Auto-detect host IP for system domain
-HOST_IP="${HOST_IP:-$(hostname -I | awk '{print $1}')}"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    HOST_IP="${HOST_IP:-$(ipconfig getifaddr en0)}"
+else
+    # Linux
+    HOST_IP="${HOST_IP:-$(hostname -I | awk '{print $1}')}"
+fi
+
 SYSTEM_DOMAIN="${SYSTEM_DOMAIN:-${HOST_IP}.nip.io}"
 
 # Colors for output
@@ -77,9 +84,23 @@ check_prerequisites() {
     fi
     
     # Check available resources
-    local total_mem=$(free -g | awk '/^Mem:/{print $2}')
-    if [ "$total_mem" -lt 8 ]; then
-        log_warn "Less than 8GB RAM detected. Deployment may be slow or fail."
+    local total_mem_gb=0
+    
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+         # macOS memory check (bytes to GB)
+         local mem_bytes=$(sysctl -n hw.memsize)
+         total_mem_gb=$((mem_bytes / 1024 / 1024 / 1024))
+    else
+         # Linux memory check
+         if command -v free &> /dev/null; then
+             total_mem_gb=$(free -g | awk '/^Mem:/{print $2}')
+         fi
+    fi
+
+    if [ "$total_mem_gb" -lt 8 ]; then
+        log_warn "Less than 8GB RAM detected ($total_mem_gb GB). Deployment may be slow or fail."
+    else
+        log_info "Memory check passed: ${total_mem_gb} GB detected."
     fi
     
     log_success "Prerequisites check passed"
@@ -87,7 +108,14 @@ check_prerequisites() {
 
 install_bosh_cli() {
     log_info "Installing BOSH CLI..."
-    local bosh_url="https://github.com/cloudfoundry/bosh-cli/releases/download/v7.8.6/bosh-cli-7.8.6-linux-amd64"
+    local bosh_url=""
+    
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        bosh_url="https://github.com/cloudfoundry/bosh-cli/releases/download/v7.8.6/bosh-cli-7.8.6-darwin-amd64"
+    else
+        bosh_url="https://github.com/cloudfoundry/bosh-cli/releases/download/v7.8.6/bosh-cli-7.8.6-linux-amd64"
+    fi
+    
     curl -sL "$bosh_url" -o /tmp/bosh
     chmod +x /tmp/bosh
     sudo mv /tmp/bosh /usr/local/bin/bosh
@@ -96,8 +124,25 @@ install_bosh_cli() {
 
 install_cf_cli() {
     log_info "Installing CF CLI..."
-    curl -sL "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github" | tar -xz -C /tmp
-    sudo mv /tmp/cf8 /usr/local/bin/cf
+    local cf_url=""
+    
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        cf_url="https://packages.cloudfoundry.org/stable?release=macosx64-binary&version=v8&source=github"
+    else
+        cf_url="https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github"
+    fi
+
+    curl -sL "$cf_url" | tar -xz -C /tmp
+    
+    # On Mac, the binary might be in a different path inside the tarball or just 'cf'
+    if [ -f /tmp/cf8 ]; then
+        sudo mv /tmp/cf8 /usr/local/bin/cf
+    elif [ -f /tmp/cf ]; then
+        sudo mv /tmp/cf /usr/local/bin/cf
+    else
+        log_warn "Could not find 'cf' binary in extracted archive. Please install manually."
+    fi
+    
     log_success "CF CLI installed"
 }
 
@@ -170,10 +215,12 @@ deploy_director() {
     
     cd "${WORKSPACE}"
     
-    # Ensure Docker socket is accessible
-    if [ ! -w /var/run/docker.sock ]; then
-        log_warn "Docker socket not writable. Attempting to fix..."
-        sudo chmod a+rw /var/run/docker.sock
+    # Ensure Docker socket is accessible (Linux only check usually)
+    if [[ "$OSTYPE" != "darwin"* ]]; then
+        if [ ! -w /var/run/docker.sock ]; then
+            log_warn "Docker socket not writable. Attempting to fix..."
+            sudo chmod a+rw /var/run/docker.sock
+        fi
     fi
     
     # Create director deployment
